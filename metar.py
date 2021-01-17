@@ -1,9 +1,10 @@
 import requests
 import xmltodict
+from const import BASE_URL
 
-url = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?dataSource=metars&requestType=retrieve&format=xml&hoursBeforeNow=1&mostRecentForEachStation=true&stationString=KTTA KFAY KRDU KBUY KGSO"
-url2 = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?dataSource=metars&requestType=retrieve&format=xml&stationString=PHTO&hoursBeforeNow=4"
-res = requests.get(url)
+airports = "KTTA KFAY KRDU KBUY KGSO"
+
+res = requests.get(BASE_URL + airports)
 
 raw =[]
 if res.ok:
@@ -18,3 +19,7 @@ if res.ok:
             raw.append(result['raw_text'])
 else:
     print('bad response')
+
+if raw:
+    for metar in raw:
+        print(metar)
