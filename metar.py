@@ -8,7 +8,9 @@ class Wind:
         self.speed = int(speed)
 
     def __repr__(self):
-        return f'{self.dir} @ {self.speed:02} kts'
+        if self.speed > 0:
+            return f'{self.dir:03} @ {self.speed:02} kts'
+        return 'calm        '
 
     def raw(self):
         return f'{self.dir:03}{self.speed:02}KT'
@@ -20,25 +22,44 @@ class CloudLayer:
         if self.cover == 'CLR':
             self.alt = 0
         else:
-            self.alt = sky_condition['@cloud_base_agl']
+            self.alt = sky_condition['@cloud_base_ft_agl']
+
+    def __repr__(self):
+        if self.cover == 'CLR':
+            return f'{self.cover}'
+        return f'{self.cover} {self.alt}'
+
+    def is_overcast(self):
+        return self.cover == 'OVC'
+
+    def is_broken(self):
+        return self.cover == 'BKN'
+
+    def is_ceiling(self):
+        return self.is_overcast() or self.is_broken()
+
 
 
 class Sky:
     def __init__(self, sky_condition):
         self.layers = []
-        if len(sky_condition) == 1:
+        if isinstance(sky_condition, dict):
             self.layers.append(CloudLayer(sky_condition))
-        else:
+        else:   # should be a list.
             for layer in sky_condition:
                 self.layers.append(CloudLayer(layer))
 
     def ceiling(self):
-        if len(self.layers) == 1:
-            return self.layers[0]
+        ''' returns the lowest ceiling layer, or the lowest layer if no celing'''
         lowest = self.layers[0]
+        ceiling = False
+        for layer in self.layers:
+            if layer.is_ceiling() and ceiling == False:
+                lowest = layer
         return lowest
-        # this is totally fuckered. need to find the lowest OVC or BKN layer
-        # what to return if only SCT of FEW layers? 
+
+    def __repr__(self):
+        return str(self.ceiling())
 
 
 
@@ -52,18 +73,23 @@ class Metar:
         self.wind = Wind(metar_xml_dict['wind_dir_degrees'],
                          metar_xml_dict['wind_speed_kt'])
         self.vis = metar_xml_dict['visibility_statute_mi']
-        self.alt = metar_xml_dict['altim_in_hg']
+        self.alt = int(float(metar_xml_dict['altim_in_hg'])*100)/100
         self.cat =  metar_xml_dict['flight_category']
         self.sky = Sky(metar_xml_dict['sky_condition'])
 
     def __repr__(self):
-        return f'{self.station} {self.cat}  {self.wind}  {self.vis}'
+        return f'{self.station} '\
+               f'{self.cat:4}  '\
+               f'{self.wind}  '\
+               f'{self.vis:4}  '\
+               f'{self.alt:4}  '\
+               f'{self.sky}'
 
 
 
 
 
-airports = "KTTA KFAY KRDU KBUY KGSO"
+airports = "KTTA KSEA KRDU KHQM KGSO KPIT KPIA"
 
 res = requests.get(BASE_URL + airports)
 
