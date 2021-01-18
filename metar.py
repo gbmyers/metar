@@ -9,9 +9,7 @@ class Wind:
         self.speed = int(speed)
 
     def __repr__(self):
-        if self.speed > 0:
-            return f'{self.dir:03} @ {self.speed:02}'
-        return 'calm    '
+        return 'calm' if self.speed == 0 else f'{self.dir:03}@{self.speed:02}'
 
     def raw(self):
         return f'{self.dir:03}{self.speed:02}KT'
@@ -22,14 +20,14 @@ class CloudLayer:
     def __init__(self, sky_condition):
         self.cover = sky_condition['@sky_cover']
         if self.cover == 'CLR':
-            self.alt = 0
+            self.alt = None
         else:
-            self.alt = sky_condition['@cloud_base_ft_agl']
+            self.alt = int(sky_condition['@cloud_base_ft_agl'])
 
     def __repr__(self):
         if self.cover == 'CLR':
             return f'{self.cover}'
-        return f'{self.cover} {self.alt}'
+        return f'{self.cover}@{self.alt}'
 
     def is_overcast(self):
         return self.cover == 'OVC'
@@ -51,23 +49,42 @@ class Sky:
             for layer in sky_condition:
                 self.layers.append(CloudLayer(layer))
 
-    def ceiling(self):
-        ''' returns the lowest ceiling layer, or the lowest layer if no celing'''
-        lowest = self.layers[0]
-        ceiling = False
+    def lowest(self):
+        ''' returns the lowest cloud layer or None if clear'''
+        if self.layers[0].cover == 'CLR': return None
+        lowest = CloudLayer({'@sky_cover': None, '@cloud_base_ft_agl': 999999})
         for layer in self.layers:
-            if layer.is_ceiling() and ceiling == False:
+            if layer.alt < lowest.alt:
                 lowest = layer
-        return lowest
+        return None if lowest.cover == None else lowest
+
+    def ceiling(self):
+        '''returns the lowest ceiling layer or None if no ceiling'''
+        if self.layers[0].cover == 'CLR': return None
+        ceiling = CloudLayer({'@sky_cover': None, '@cloud_base_ft_agl': 999999})
+        for layer in self.layers:
+            if layer.is_ceiling() and layer.alt < ceiling.alt:
+                ceiling = layer
+        return ceiling
+
+    def all_layers(self):
+        if self.layers[0].cover == 'CLR':
+            return 'CLR'
+        all_the_layers = ""
+        for layer in self.layers:
+            all_the_layers += f'{str(layer)} '
+        # this should be save, because there is always at least one layer
+        return all_the_layers[:-1]
 
     def __repr__(self):
-        return str(self.ceiling())
+        return self.all_layers()
 
 
 class Metar:
     def __init__(self, metar_xml_dict):
         self.station = metar_xml_dict['station_id']
         self.obs_time = metar_xml_dict['observation_time']
+        self.timestamp = metar_xml_dict['raw_text'][5:12]
         self.raw = metar_xml_dict['raw_text']
         self.temp = round(float(metar_xml_dict['temp_c']))
         self.dewpt = round(float(metar_xml_dict['dewpoint_c']))
@@ -89,6 +106,7 @@ class Metar:
 
     def __repr__(self):
         return f'{self.station} '\
+               f'{self.timestamp}  '\
                f'{self.cat:4}  '\
                f'{self.wind}  '\
                f'{self.alt:4}  '\
