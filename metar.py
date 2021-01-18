@@ -19,10 +19,7 @@ class CloudLayer:
     '''an individual cloud layer. stores type of layer and altitude AGL'''
     def __init__(self, sky_condition):
         self.cover = sky_condition['@sky_cover']
-        if self.cover == 'CLR':
-            self.alt = None
-        else:
-            self.alt = int(sky_condition['@cloud_base_ft_agl'])
+        self.alt = None if self.cover == 'CLR' else int(sky_condition['@cloud_base_ft_agl'])
 
     def __repr__(self):
         if self.cover == 'CLR':
@@ -52,11 +49,11 @@ class Sky:
     def lowest(self):
         ''' returns the lowest cloud layer or None if clear'''
         if self.layers[0].cover == 'CLR': return None
-        lowest = CloudLayer({'@sky_cover': None, '@cloud_base_ft_agl': 999999})
+        lowest = self.layers[0]
         for layer in self.layers:
             if layer.alt < lowest.alt:
                 lowest = layer
-        return None if lowest.cover == None else lowest
+        return lowest
 
     def ceiling(self):
         '''returns the lowest ceiling layer or None if no ceiling'''
@@ -65,7 +62,7 @@ class Sky:
         for layer in self.layers:
             if layer.is_ceiling() and layer.alt < ceiling.alt:
                 ceiling = layer
-        return ceiling
+        return None if ceiling.cover == None else ceiling
 
     def all_layers(self):
         if self.layers[0].cover == 'CLR':
@@ -77,7 +74,7 @@ class Sky:
         return all_the_layers[:-1]
 
     def __repr__(self):
-        return self.all_layers()
+        return f'{self.ceiling()} | {self.lowest()} | {self.all_layers()}'
 
 
 class Metar:
@@ -95,11 +92,9 @@ class Metar:
         self.cat = metar_xml_dict['flight_category']
         self.sky = Sky(metar_xml_dict['sky_condition'])
 
-    def raw_temp(self):
-        temp_sign = ""
-        dewp_sign = ""
-        if self.temp < 0: temp_sign = "M"
-        if self.dewpt < 0: dewp_sign = "M"
+    def temp_and_dewpt(self):
+        temp_sign = "M" if self.temp < 0 else ""
+        dewp_sign = "M" if self.dewpt < 0 else ""
         temp = f'{temp_sign}{abs(self.temp):02}'
         dewpt = f'{dewp_sign}{abs(self.dewpt):02}'
         return  temp + '/' + dewpt
@@ -108,11 +103,11 @@ class Metar:
         return f'{self.station} '\
                f'{self.timestamp}  '\
                f'{self.cat:4}  '\
-               f'{self.wind}  '\
+               f'{str(self.wind):6}  '\
                f'{self.alt:4}  '\
-               f'{self.raw_temp():7}  '\
+               f'{self.temp_and_dewpt():7}  '\
                f'{self.vis:02}  '\
-               f'{self.sky}'
+               f'{str(self.sky)}'
 
 
 airports = "KTTA KSEA KRDU KHQM KGSO KPIT KPIA"
