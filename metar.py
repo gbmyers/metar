@@ -74,7 +74,7 @@ class Sky:
         return all_the_layers[:-1]
 
     def __repr__(self):
-        return f'{self.ceiling()} | {self.lowest()} | {self.all_layers()}'
+        return f'{self.all_layers()}'
 
 
 class Metar:
