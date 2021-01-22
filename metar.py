@@ -101,13 +101,23 @@ class Metar:
 
     def __repr__(self):
         return f'{self.station} '\
-               f'{self.timestamp}  '\
-               f'{self.cat:4}  '\
-               f'{str(self.wind):6}  '\
-               f'{self.alt:4}  '\
-               f'{self.temp_and_dewpt():7}  '\
-               f'{self.vis:02}  '\
+               f'{self.cat} '\
+               f'{str(self.wind)} '\
+               f'{self.alt} '\
+               f'{self.temp_and_dewpt()} '\
+               f'{self.vis} '\
                f'{str(self.sky)}'
+
+    def text_out(self):
+        ''' slgihtly more formatted version of __repr__'''
+        print(f'{self.station} '\
+              f'{self.timestamp}  '\
+              f'{self.cat:4}  '\
+              f'{str(self.wind):6}  '\
+              f'{self.alt:4}  '\
+              f'{self.temp_and_dewpt():7}  '\
+              f'{self.vis:02}  '\
+              f'{str(self.sky)}')
 
 
 airports = "KTTA KSEA KRDU KHQM KGSO KPIT KPIA"
@@ -131,4 +141,4 @@ else:
 if __name__ == '__main__':
     if raw:
         for metar in raw:
-            print(metar)
+            metar.text_out()
