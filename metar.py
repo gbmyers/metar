@@ -120,25 +120,32 @@ class Metar:
               f'{str(self.sky)}')
 
 
-airports = "KTTA KSEA KRDU KHQM KGSO KPIT KPIA"
+class Metars:
+    '''grabs one or more metars from aviationweather.gov'''
+    def __init__(self, airports):
+        '''airports is a list of airport IDs'''
+        self.airports = airports
+        self.metars_list = []
+        res = requests.get(BASE_URL + ' '.join(airports))
+        if res.ok:
+            print('ok response')
+            metars_dict = xmltodict.parse(res.text)
+            results = metars_dict['response']['data']['METAR']
+            n_results = int(metars_dict['response']['data']['@num_results'])
+            if n_results == 1:
+                self.metars_list.append(Metar(results))
+            elif n_results > 1:
+                for result in results:
+                    self.metars_list.append(Metar(result))
+        else:
+            print('bad response')
 
-res = requests.get(BASE_URL + airports)
-
-raw =[]
-if res.ok:
-    print('ok response')
-    metars_dict = xmltodict.parse(res.text)
-    results = metars_dict['response']['data']['METAR']
-    n_results = int(metars_dict['response']['data']['@num_results'])
-    if n_results == 1:
-        raw.append(Metar(results))
-    elif n_results > 1:
-        for result in results:
-            raw.append(Metar(result))
-else:
-    print('bad response')
+    def text_out(self):
+        for metar in self.metars_list:
+            metar.text_out()
 
 if __name__ == '__main__':
-    if raw:
-        for metar in raw:
-            metar.text_out()
+    airports = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KPIA']
+
+    metars = Metars(airports)
+    metars.text_out()
