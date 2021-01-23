@@ -13,6 +13,7 @@ BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?"\
 
 class Wind:
     ''' stores wind speed and direction '''
+    # I wonder if this will work for variable winds
     def __init__(self, direction, speed, gust=None):
         self.dir = int(direction)
         self.speed = int(speed)
@@ -44,6 +45,7 @@ class CloudLayer:
 
     def __init__(self, sky_condition):
         self.cover = sky_condition['@sky_cover']
+        # clear skies = no alt. obscured sky alt = 0, which makes sense
         self.alt = None if self.cover in self.CLEAR else int(sky_condition['@cloud_base_ft_agl'])
 
     def __repr__(self):
@@ -65,7 +67,8 @@ class CloudLayer:
 
 
 class Sky:
-    '''stores a list of CloudLayers'''
+    '''stores a list of CloudLayers.
+    provides some info on ceiling and lowest layer'''
     def __init__(self, sky_condition):
         self.layers = []
         if isinstance(sky_condition, dict):
@@ -92,20 +95,21 @@ class Sky:
                 ceiling = layer
         return None if ceiling.cover == None else ceiling
 
-    def all_layers(self):
-        if self.layers[0].cover in CloudLayer.CLEAR:
-            return 'CLR'
-        all_the_layers = ""
-        for layer in self.layers:
-            all_the_layers += f'{str(layer)} '
-        # this should be save, because there is always at least one layer
-        return all_the_layers[:-1]
-
     def ceiling_or_lowest(self):
         '''returns the ceiling if one exists, or else the lowest cloud layer'''
         if self.ceiling():
             return str(self.ceiling())
         return str(self.lowest()) if self.lowest() else 'CLR'
+
+    def all_layers(self):
+        ''' prints out all of the layers '''
+        if self.layers[0].cover in CloudLayer.CLEAR:
+            return 'CLR'
+        all_the_layers = ""
+        for layer in self.layers:
+            all_the_layers += f'{str(layer)} '
+        # this should be safe, because there is always at least one layer
+        return all_the_layers[:-1] # trim the trailing space
 
     def __repr__(self):
         return f'{self.all_layers()}'
@@ -126,7 +130,7 @@ class Metar:
         else:
             self.wind = Wind(metar_xml_dict['wind_dir_degrees'],
                              metar_xml_dict['wind_speed_kt'])
-        self.vis = int(float(metar_xml_dict['visibility_statute_mi']))
+        self.vis = float(metar_xml_dict['visibility_statute_mi'])
         self.alt = int(float(metar_xml_dict['altim_in_hg'])*100)/100
         self.cat = metar_xml_dict['flight_category']
         self.sky = Sky(metar_xml_dict['sky_condition'])
@@ -137,6 +141,17 @@ class Metar:
         temp = f'{temp_sign}{abs(self.temp):02}'
         dewpt = f'{dewp_sign}{abs(self.dewpt):02}'
         return  temp + '/' + dewpt
+
+    def format_vis(self):
+        if self.vis > 1:
+            return f' {int(self.vis):02}'
+        elif self.vis == .25:
+            return '1/4'
+        elif self.vis == .5:
+            return '1/2'
+        elif self.vis == .75:
+            return '3/4'
+        return self.vis
 
     def __repr__(self):
         return f'{self.station} '\
@@ -155,7 +170,7 @@ class Metar:
               f'{str(self.wind):9}  '\
               f'{self.alt:.2f}  '\
               f'{self.temp_and_dewpt():7}  '\
-              f'{self.vis:02}  '\
+              f'{self.format_vis()}  '\
               f'{str(self.sky.ceiling_or_lowest())}')
 
 
