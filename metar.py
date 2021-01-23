@@ -18,15 +18,21 @@ class Wind:
         self.speed = int(speed)
         self.gust = gust
 
+    def format_dir(self):
+        # if self.dir == 0 then the direction is 'variable' (north is 360)
+        return f'{self.dir:03}' if self.dir else 'VRB'
+
     def __repr__(self):
+        dir = self.format_dir()
         if not self.gust:
-            return 'calm' if self.speed == 0 else f'{self.dir:03}@{self.speed:02}'
-        return f'{self.dir:03}@{self.speed:02}G{self.gust}'
+            return 'CALM' if self.speed == 0 else f'{dir}@{self.speed:02}'
+        return f'{dir}@{self.speed:02}G{self.gust}'
 
     def raw(self):
+        dir = self.format_dir()
         if not self.gust:
-            return f'{self.dir:03}{self.speed:02}KT'
-        return f'{self.dir:03}{self.speed:02}G{self.gust}KT'
+            return f'{dir}{self.speed:02}KT'
+        return f'{dir}{self.speed:02}G{self.gust}KT'
 
 
 class CloudLayer:
@@ -205,7 +211,7 @@ class Metars:
         return out[:-1] # trim off the trailing \n
 
 if __name__ == '__main__':
-    airports = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KHND']
+    airports = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KHND', 'KSXT']
 
     metars = Metars(airports)
     metars.text_out()
