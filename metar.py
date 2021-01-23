@@ -1,6 +1,15 @@
 import requests
 import xmltodict
-from const import BASE_URL
+
+# constants
+BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?"\
+           "dataSource=metars&"\
+           "requestType=retrieve&"\
+           "format=xml&"\
+           "hoursBeforeNow=1&"\
+           "mostRecentForEachStation=true&"\
+           "stationString="
+
 
 class Wind:
     ''' stores wind speed and direction '''
@@ -73,6 +82,12 @@ class Sky:
         # this should be save, because there is always at least one layer
         return all_the_layers[:-1]
 
+    def ceiling_or_lowest(self):
+        '''returns the ceiling if one exists, or else the lowest cloud layer'''
+        if self.ceiling():
+            return str(self.ceiling())
+        return str(self.lowest()) if self.lowest() else 'CLR'
+
     def __repr__(self):
         return f'{self.all_layers()}'
 
@@ -114,7 +129,7 @@ class Metar:
               f'{self.timestamp}  '\
               f'{self.cat:4}  '\
               f'{str(self.wind):6}  '\
-              f'{self.alt:4}  '\
+              f'{self.alt:.2f}  '\
               f'{self.temp_and_dewpt():7}  '\
               f'{self.vis:02}  '\
               f'{str(self.sky)}')
@@ -137,27 +152,47 @@ class Metars:
         if len(self.airports) == 0:
             raise TypeError('airports must be a string or a list of strings')
 
-        self.metars_list = []
+        self.metars_dict = {}
+
         self.update()
 
     def update(self):
+        ''' Gets the latest METARs for the list of airports.
+        Return True if we got a good response, False if we didn't.
+        As a side effect this will trim the list of airports to those that were
+        updated successfully. Invalid airport are ignored by the API.'''
+
         res = requests.get(BASE_URL + ' '.join(self.airports))
         if res.ok:
-            print('ok response')
-            metars_dict = xmltodict.parse(res.text)
+            metars_dict = xmltodict.parse(res.text) #parse XML to dict
+            # actual results are buried a few layers isn
             results = metars_dict['response']['data']['METAR']
             n_results = int(metars_dict['response']['data']['@num_results'])
-            if n_results == 1:
-                self.metars_list.append(Metar(results))
-            elif n_results > 1:
+            # keep track of which airports were succefful
+            successful_updates=[]
+            if n_results == 1: # one result will be a singleton
+                successful_updates.append(results['station_id'])
+                self.metars_dict[results['station_id']] = Metar(results)
+            elif n_results > 1: # multiple results will be in a list
                 for result in results:
-                    self.metars_list.append(Metar(result))
+                    successful_updates.append(result['station_id'])
+                    self.metars_dict[result['station_id']] = Metar(result)
+            # update the list of airports we've successfully updated
+            self.airports = successful_updates
+            return True
         else:
-            print('bad response')
+            # we failed to update. got a bad response from the server
+            return False
 
     def text_out(self):
-        for metar in self.metars_list:
+        for metar in self.metars_dict.values():
             metar.text_out()
+
+    def __repr__(self):
+        out = ""
+        for metar in self.metars_dict.items():
+            out += f'{metar[0]}: {metar[1]}\n'
+        return out[:-1] # trim off the trailing \n
 
 if __name__ == '__main__':
     airports = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KPIA']
