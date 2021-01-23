@@ -37,12 +37,17 @@ class Wind:
 
 class CloudLayer:
     '''an individual cloud layer. stores type of layer and altitude AGL'''
+    # either clear skies or obscured at ground level.
+    NO_LAYER = ['CLR', 'SKC', 'CAVOK', 'OVX']
+    # variations on clear skies
+    CLEAR = ['CLR', 'SKC', 'CAVOK']
+
     def __init__(self, sky_condition):
         self.cover = sky_condition['@sky_cover']
-        self.alt = None if self.cover == 'CLR' else int(sky_condition['@cloud_base_ft_agl'])
+        self.alt = None if self.cover in self.CLEAR else int(sky_condition['@cloud_base_ft_agl'])
 
     def __repr__(self):
-        if self.cover == 'CLR':
+        if self.cover in self.NO_LAYER:
             return f'{self.cover}'
         return f'{self.cover}@{self.alt}'
 
@@ -52,8 +57,11 @@ class CloudLayer:
     def is_broken(self):
         return self.cover == 'BKN'
 
+    def is_obscured(self):
+        return self.cover == 'OVX'
+
     def is_ceiling(self):
-        return self.is_overcast() or self.is_broken()
+        return self.is_overcast() or self.is_broken() or self.is_obscured()
 
 
 class Sky:
@@ -68,7 +76,7 @@ class Sky:
 
     def lowest(self):
         ''' returns the lowest cloud layer or None if clear'''
-        if self.layers[0].cover == 'CLR': return None
+        if self.layers[0].cover in CloudLayer.CLEAR: return None
         lowest = self.layers[0]
         for layer in self.layers:
             if layer.alt < lowest.alt:
@@ -77,7 +85,7 @@ class Sky:
 
     def ceiling(self):
         '''returns the lowest ceiling layer or None if no ceiling'''
-        if self.layers[0].cover == 'CLR': return None
+        if self.layers[0].cover in CloudLayer.CLEAR: return None
         ceiling = CloudLayer({'@sky_cover': None, '@cloud_base_ft_agl': 999999})
         for layer in self.layers:
             if layer.is_ceiling() and layer.alt < ceiling.alt:
@@ -85,7 +93,7 @@ class Sky:
         return None if ceiling.cover == None else ceiling
 
     def all_layers(self):
-        if self.layers[0].cover == 'CLR':
+        if self.layers[0].cover in CloudLayer.CLEAR:
             return 'CLR'
         all_the_layers = ""
         for layer in self.layers:
@@ -148,7 +156,7 @@ class Metar:
               f'{self.alt:.2f}  '\
               f'{self.temp_and_dewpt():7}  '\
               f'{self.vis:02}  '\
-              f'{str(self.sky)}')
+              f'{str(self.sky.ceiling_or_lowest())}')
 
 
 class Metars:
@@ -201,6 +209,7 @@ class Metars:
             return False
 
     def text_out(self):
+        ''' provides a lightly formatted output of the metars '''
         for metar in self.metars_dict.values():
             metar.text_out()
 
