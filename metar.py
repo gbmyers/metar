@@ -124,9 +124,24 @@ class Metars:
     '''grabs one or more metars from aviationweather.gov'''
     def __init__(self, airports):
         '''airports is a list of airport IDs'''
-        self.airports = airports
+        self.airports = []
+        if not isinstance(airports, list): # airports is probably a string
+            if isinstance(airports, str):   # let's make sure
+                self.airports.append(airports)     # this is the case when we get a single string
+        else:    # we've got a list, make sure all elements are strings
+            for airport in airports:
+                if isinstance(airport, str): # filter out anything that's not a string
+                    self.airports.append(airport)
+
+        # what if we get a list with no strings?
+        if len(self.airports) == 0:
+            raise TypeError('airports must be a string or a list of strings')
+
         self.metars_list = []
-        res = requests.get(BASE_URL + ' '.join(airports))
+        self.update()
+
+    def update(self):
+        res = requests.get(BASE_URL + ' '.join(self.airports))
         if res.ok:
             print('ok response')
             metars_dict = xmltodict.parse(res.text)
