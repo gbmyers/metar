@@ -13,15 +13,20 @@ BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?"\
 
 class Wind:
     ''' stores wind speed and direction '''
-    def __init__(self, direction, speed):
+    def __init__(self, direction, speed, gust=None):
         self.dir = int(direction)
         self.speed = int(speed)
+        self.gust = gust
 
     def __repr__(self):
-        return 'calm' if self.speed == 0 else f'{self.dir:03}@{self.speed:02}'
+        if not self.gust:
+            return 'calm' if self.speed == 0 else f'{self.dir:03}@{self.speed:02}'
+        return f'{self.dir:03}@{self.speed:02}G{self.gust}'
 
     def raw(self):
-        return f'{self.dir:03}{self.speed:02}KT'
+        if not self.gust:
+            return f'{self.dir:03}{self.speed:02}KT'
+        return f'{self.dir:03}{self.speed:02}G{self.gust}KT'
 
 
 class CloudLayer:
@@ -100,8 +105,13 @@ class Metar:
         self.raw = metar_xml_dict['raw_text']
         self.temp = round(float(metar_xml_dict['temp_c']))
         self.dewpt = round(float(metar_xml_dict['dewpoint_c']))
-        self.wind = Wind(metar_xml_dict['wind_dir_degrees'],
-                         metar_xml_dict['wind_speed_kt'])
+        if 'wind_gust_kt' in metar_xml_dict.keys():
+            self.wind = Wind(metar_xml_dict['wind_dir_degrees'],
+                             metar_xml_dict['wind_speed_kt'],
+                             metar_xml_dict['wind_gust_kt'])
+        else:
+            self.wind = Wind(metar_xml_dict['wind_dir_degrees'],
+                             metar_xml_dict['wind_speed_kt'])
         self.vis = int(float(metar_xml_dict['visibility_statute_mi']))
         self.alt = int(float(metar_xml_dict['altim_in_hg'])*100)/100
         self.cat = metar_xml_dict['flight_category']
@@ -128,7 +138,7 @@ class Metar:
         print(f'{self.station} '\
               f'{self.timestamp}  '\
               f'{self.cat:4}  '\
-              f'{str(self.wind):6}  '\
+              f'{str(self.wind):9}  '\
               f'{self.alt:.2f}  '\
               f'{self.temp_and_dewpt():7}  '\
               f'{self.vis:02}  '\
@@ -195,7 +205,7 @@ class Metars:
         return out[:-1] # trim off the trailing \n
 
 if __name__ == '__main__':
-    airports = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KPIA']
+    airports = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KHND']
 
     metars = Metars(airports)
     metars.text_out()
