@@ -1,14 +1,19 @@
 import requests
 import xmltodict
+from datetime import datetime
 
 # constants
 BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?"\
            "dataSource=metars&"\
            "requestType=retrieve&"\
            "format=xml&"\
-           "hoursBeforeNow=1&"\
+           "hoursBeforeNow=5&"\
            "mostRecentForEachStation=true&"\
            "stationString="
+
+OBS_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
+
+HEADER = "ARPT TIME    AGE     CAT   WIND       ALT    TEMP     VIS  CEIL/LWST"
 
 
 class Wind:
@@ -118,7 +123,10 @@ class Sky:
 class Metar:
     def __init__(self, metar_xml_dict):
         self.station = metar_xml_dict['station_id']
-        self.obs_time = metar_xml_dict['observation_time']
+        obs_time = metar_xml_dict['observation_time'][:-1] #strip trailing Z
+        self.obs_time = datetime.strptime(obs_time, OBS_TIME_FORMAT)
+        obs_age = datetime.utcnow() - self.obs_time
+        self.obs_age = obs_age.seconds // 60   # observation age in minutes
         self.timestamp = metar_xml_dict['raw_text'][5:12]
         self.raw = metar_xml_dict['raw_text']
         self.temp = round(float(metar_xml_dict['temp_c']))
@@ -153,6 +161,7 @@ class Metar:
             return '3/4'
         return self.vis
 
+
     def __repr__(self):
         return f'{self.station} '\
                f'{self.cat} '\
@@ -165,7 +174,8 @@ class Metar:
     def text_out(self):
         ''' slgihtly more formatted version of __repr__'''
         print(f'{self.station} '\
-              f'{self.timestamp}  '\
+              f'{self.timestamp} '\
+              f'({self.obs_age:03}m)  '\
               f'{self.cat:4}  '\
               f'{str(self.wind):9}  '\
               f'{self.alt:.2f}  '\
@@ -204,9 +214,12 @@ class Metars:
         res = requests.get(BASE_URL + ' '.join(self.airports))
         if res.ok:
             metars_dict = xmltodict.parse(res.text) #parse XML to dict
-            # actual results are buried a few layers isn
-            results = metars_dict['response']['data']['METAR']
             n_results = int(metars_dict['response']['data']['@num_results'])
+            if n_results == 0: return False # got nothing back from ADDS
+
+            # actual results are buried a few layers in
+            results = metars_dict['response']['data']['METAR']
+
             # keep track of which airports were succefful
             successful_updates=[]
             if n_results == 1: # one result will be a singleton
@@ -238,4 +251,5 @@ if __name__ == '__main__':
     airports = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KHND', 'KSXT']
 
     metars = Metars(airports)
+    print(HEADER)
     metars.text_out()
