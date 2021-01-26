@@ -143,7 +143,7 @@ class Metar:
         return  temp + '/' + dewpt
 
     def format_vis(self):
-        if self.vis > 1:
+        if self.vis >= 1:
             return f' {int(self.vis):02}'
         elif self.vis == .25:
             return '1/4'
