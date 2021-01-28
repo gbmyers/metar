@@ -13,6 +13,11 @@ BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?" 
 
 OBS_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
 
+COLOR = {'LIFR': '\x1b[1;95m',  # pinkish/purple
+         'IFR':  '\x1b[1;91m',  # red
+         'MVFR': '\x1b[1;34m',  # blue
+         'VFR':  '\x1b[1;32m'}  # green
+
 HEADER = "ARPT TIME    AGE     CAT   WIND       ALT    TEMP     VIS  CEIL/LWST"
 
 
@@ -125,45 +130,85 @@ class Sky:
 
 
 class Metar:
-    def __init__(self, metar_xml_dict):
-        self.station = metar_xml_dict['station_id']
-        obs_time = metar_xml_dict['observation_time'][:-1]  # strip trailing Z
+    def __init__(self, metar):
+        """ takes in a dictionary created from the XML output from the aviationweather.gov ADDS text service"""
+        self.station = metar['station_id']
+        obs_time = metar['observation_time'][:-1]  # strip trailing Z
         self.obs_time = datetime.strptime(obs_time, OBS_TIME_FORMAT)
         obs_age = datetime.utcnow() - self.obs_time
         self.obs_age = obs_age.seconds // 60  # observation age in minutes
-        self.timestamp = metar_xml_dict['raw_text'][5:12]
-        self.raw = metar_xml_dict['raw_text']
-        self.temp = round(float(metar_xml_dict['temp_c']))
-        self.dewpt = round(float(metar_xml_dict['dewpoint_c']))
-        if 'wind_gust_kt' in metar_xml_dict.keys():
-            self.wind = Wind(metar_xml_dict['wind_dir_degrees'],
-                             metar_xml_dict['wind_speed_kt'],
-                             metar_xml_dict['wind_gust_kt'])
-        else:
-            self.wind = Wind(metar_xml_dict['wind_dir_degrees'],
-                             metar_xml_dict['wind_speed_kt'])
-        self.vis = float(metar_xml_dict['visibility_statute_mi'])
-        self.alt = int(float(metar_xml_dict['altim_in_hg']) * 100) / 100
-        self.cat = metar_xml_dict['flight_category']
-        self.sky = Sky(metar_xml_dict['sky_condition'])
+        self.timestamp = metar['raw_text'][5:12]
+        self.raw = metar['raw_text']
+        self.temp = round(float(metar['temp_c'])) if 'temp_c' in metar.keys() else None
+        self.dewpt = round(float(metar['dewpoint_c'])) if 'dewpoint_c' in metar.keys() else None
+        if 'wind_speed_kt' in metar.keys():
+            if 'wind_gust_kt' in metar.keys():
+                self.wind = Wind(metar['wind_dir_degrees'],
+                                 metar['wind_speed_kt'],
+                                 metar['wind_gust_kt'])
+            else:
+                self.wind = Wind(metar['wind_dir_degrees'],
+                                 metar['wind_speed_kt'])
+        self.vis = float(metar['visibility_statute_mi']) if 'visibility_statute_mi' in metar.keys() else None
+        self.alt = int(float(metar['altim_in_hg']) * 100) / 100 if 'altim_in_hg' in metar.keys() else None
+        self.cat = metar['flight_category']
+        self.sky = Sky(metar['sky_condition']) if 'sky_condition' in metar.keys() else None
+        self.wx_string = metar['wx_string'] if 'wx_string' in metar.keys() else ""
 
     def temp_and_dewpt(self):
-        temp_sign = "M" if self.temp < 0 else ""
-        dewp_sign = "M" if self.dewpt < 0 else ""
-        temp = f'{temp_sign}{abs(self.temp):02}'
-        dewpt = f'{dewp_sign}{abs(self.dewpt):02}'
+        temp = "xx"
+        dewpt = "xx"
+        if self.temp:
+            temp_sign = "M" if self.temp < 0 else ""
+            temp = f'{temp_sign}{abs(self.temp):02}'
+        if self.dewpt:
+            dewp_sign = "M" if self.dewpt < 0 else ""
+            dewpt = f'{dewp_sign}{abs(self.dewpt):02}'
         return temp + '/' + dewpt
 
+    def format_cat(self):
+        return f'{COLOR[self.cat]}{self.cat:4}\x1b[0m'
+
     def format_vis(self):
-        if self.vis >= 1:
-            return f' {int(self.vis):02}'
+        """colorizes the visibility based on its flight category
+        (not necessarily the flight category of the airport)
+        VFR >= 5 sm
+        MVFR 3-5 sm
+        IFR  1-3 sm
+        LIFR < 1 sm """
+        if self.vis >= 5:  #
+            return f'{COLOR["VFR"]} {int(self.vis):02}\x1b[0m'
+        elif self.vis >= 3:
+            return f'{COLOR["MVFR"]} {int(self.vis):02}\x1b[0m'
+        elif self.vis >= 1:
+            return f'{COLOR["IFR"]} {int(self.vis):02}\x1b[0m'
         elif self.vis == .25:
-            return '1/4'
+            return f'{COLOR["LIFR"]}1/4\x1b[0m'
         elif self.vis == .5:
-            return '1/2'
+            return f'{COLOR["LIFR"]}1/2\x1b[0m'
         elif self.vis == .75:
-            return '3/4'
+            return f'{COLOR["LIFR"]}3/4\x1b[0m'
         return self.vis
+
+    def format_ceiling(self):
+        """ colorizes the ceiling based on its flight category
+        (not necessarily the flight category of the airport)
+        VFR > 3000
+        MVFR 1000 - 3000
+        IFR 500 - 1000
+        LIFR > 500"""
+        ceiling = self.sky.ceiling()
+        if ceiling:
+            if ceiling.alt >= 3000:
+                return f'{COLOR["VFR"]} {str(ceiling):9}\x1b[0m'
+            elif ceiling.alt >= 1000:
+                return f'{COLOR["MVFR"]} {str(ceiling):9}\x1b[0m'
+            elif ceiling.alt >= 500:
+                return f'{COLOR["IFR"]} {str(ceiling):9}\x1b[0m'
+            else:
+                return f'{COLOR["LIFR"]} {str(ceiling):9}\x1b[0m'
+        # if not a ceiling, then we're VFR
+        return f'{COLOR["VFR"]} {str(self.sky.ceiling_or_lowest()):9}\x1b[0m'
 
     def __repr__(self):
         return f'{self.station} ' \
@@ -175,16 +220,17 @@ class Metar:
                f'{str(self.sky)}'
 
     def text_out(self):
-        """ slgihtly more formatted version of __repr__"""
+        """ slightly more formatted version of __repr__"""
         print(f'{self.station} '
               f'{self.timestamp} '
               f'({self.obs_age:03}m)  '
-              f'{self.cat:4}  '
+              f'{self.format_cat()}  '
               f'{str(self.wind):9}  '
               f'{self.alt:.2f}  '
               f'{self.temp_and_dewpt():7}  '
               f'{self.format_vis()}  '
-              f'{str(self.sky.ceiling_or_lowest())}')
+              f'{self.format_ceiling()}  '
+              f'{self.wx_string}')
 
 
 class Metars:
