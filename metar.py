@@ -258,4 +258,4 @@ if __name__ == '__main__':
 
     metars = Metars(airport_list)
     print(HEADER)
-    metars.text_out()
+    metars.text_out()  # something
