@@ -3,12 +3,12 @@ import xmltodict
 from datetime import datetime
 
 # constants
-BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?"\
-           "dataSource=metars&"\
-           "requestType=retrieve&"\
-           "format=xml&"\
-           "hoursBeforeNow=5&"\
-           "mostRecentForEachStation=true&"\
+BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?" \
+           "dataSource=metars&" \
+           "requestType=retrieve&" \
+           "format=xml&" \
+           "hoursBeforeNow=5&" \
+           "mostRecentForEachStation=true&" \
            "stationString="
 
 OBS_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
@@ -17,7 +17,8 @@ HEADER = "ARPT TIME    AGE     CAT   WIND       ALT    TEMP     VIS  CEIL/LWST"
 
 
 class Wind:
-    ''' stores wind speed and direction '''
+    """ stores wind speed and direction """
+
     # I wonder if this will work for variable winds
     def __init__(self, direction, speed, gust=None):
         self.dir = int(direction)
@@ -29,20 +30,20 @@ class Wind:
         return f'{self.dir:03}' if self.dir else 'VRB'
 
     def __repr__(self):
-        dir = self.format_dir()
+        wind_dir = self.format_dir()
         if not self.gust:
-            return 'CALM' if self.speed == 0 else f'{dir}@{self.speed:02}'
-        return f'{dir}@{self.speed:02}G{self.gust}'
+            return 'CALM' if self.speed == 0 else f'{wind_dir}@{self.speed:02}'
+        return f'{wind_dir}@{self.speed:02}G{self.gust}'
 
     def raw(self):
-        dir = self.format_dir()
+        wind_dir = self.format_dir()
         if not self.gust:
-            return f'{dir}{self.speed:02}KT'
-        return f'{dir}{self.speed:02}G{self.gust}KT'
+            return f'{wind_dir}{self.speed:02}KT'
+        return f'{wind_dir}{self.speed:02}G{self.gust}KT'
 
 
 class CloudLayer:
-    '''an individual cloud layer. stores type of layer and altitude AGL'''
+    """an individual cloud layer. stores type of layer and altitude AGL"""
     # either clear skies or obscured at ground level.
     NO_LAYER = ['CLR', 'SKC', 'CAVOK', 'OVX']
     # variations on clear skies
@@ -72,19 +73,21 @@ class CloudLayer:
 
 
 class Sky:
-    '''stores a list of CloudLayers.
-    provides some info on ceiling and lowest layer'''
+    """stores a list of CloudLayers.
+    provides some info on ceiling and lowest layer"""
+
     def __init__(self, sky_condition):
         self.layers = []
         if isinstance(sky_condition, dict):
             self.layers.append(CloudLayer(sky_condition))
-        else:   # should be a list.
+        else:  # should be a list.
             for layer in sky_condition:
                 self.layers.append(CloudLayer(layer))
 
     def lowest(self):
-        ''' returns the lowest cloud layer or None if clear'''
-        if self.layers[0].cover in CloudLayer.CLEAR: return None
+        """ returns the lowest cloud layer or None if clear"""
+        if self.layers[0].cover in CloudLayer.CLEAR:
+            return None
         lowest = self.layers[0]
         for layer in self.layers:
             if layer.alt < lowest.alt:
@@ -92,29 +95,30 @@ class Sky:
         return lowest
 
     def ceiling(self):
-        '''returns the lowest ceiling layer or None if no ceiling'''
-        if self.layers[0].cover in CloudLayer.CLEAR: return None
+        """returns the lowest ceiling layer or None if no ceiling"""
+        if self.layers[0].cover in CloudLayer.CLEAR:
+            return None
         ceiling = CloudLayer({'@sky_cover': None, '@cloud_base_ft_agl': 999999})
         for layer in self.layers:
             if layer.is_ceiling() and layer.alt < ceiling.alt:
                 ceiling = layer
-        return None if ceiling.cover == None else ceiling
+        return None if ceiling.cover is None else ceiling
 
     def ceiling_or_lowest(self):
-        '''returns the ceiling if one exists, or else the lowest cloud layer'''
+        """returns the ceiling if one exists, or else the lowest cloud layer"""
         if self.ceiling():
             return str(self.ceiling())
         return str(self.lowest()) if self.lowest() else 'CLR'
 
     def all_layers(self):
-        ''' prints out all of the layers '''
+        """ prints out all of the layers """
         if self.layers[0].cover in CloudLayer.CLEAR:
             return 'CLR'
         all_the_layers = ""
         for layer in self.layers:
             all_the_layers += f'{str(layer)} '
         # this should be safe, because there is always at least one layer
-        return all_the_layers[:-1] # trim the trailing space
+        return all_the_layers[:-1]  # trim the trailing space
 
     def __repr__(self):
         return f'{self.all_layers()}'
@@ -123,10 +127,10 @@ class Sky:
 class Metar:
     def __init__(self, metar_xml_dict):
         self.station = metar_xml_dict['station_id']
-        obs_time = metar_xml_dict['observation_time'][:-1] #strip trailing Z
+        obs_time = metar_xml_dict['observation_time'][:-1]  # strip trailing Z
         self.obs_time = datetime.strptime(obs_time, OBS_TIME_FORMAT)
         obs_age = datetime.utcnow() - self.obs_time
-        self.obs_age = obs_age.seconds // 60   # observation age in minutes
+        self.obs_age = obs_age.seconds // 60  # observation age in minutes
         self.timestamp = metar_xml_dict['raw_text'][5:12]
         self.raw = metar_xml_dict['raw_text']
         self.temp = round(float(metar_xml_dict['temp_c']))
@@ -139,7 +143,7 @@ class Metar:
             self.wind = Wind(metar_xml_dict['wind_dir_degrees'],
                              metar_xml_dict['wind_speed_kt'])
         self.vis = float(metar_xml_dict['visibility_statute_mi'])
-        self.alt = int(float(metar_xml_dict['altim_in_hg'])*100)/100
+        self.alt = int(float(metar_xml_dict['altim_in_hg']) * 100) / 100
         self.cat = metar_xml_dict['flight_category']
         self.sky = Sky(metar_xml_dict['sky_condition'])
 
@@ -148,7 +152,7 @@ class Metar:
         dewp_sign = "M" if self.dewpt < 0 else ""
         temp = f'{temp_sign}{abs(self.temp):02}'
         dewpt = f'{dewp_sign}{abs(self.dewpt):02}'
-        return  temp + '/' + dewpt
+        return temp + '/' + dewpt
 
     def format_vis(self):
         if self.vis >= 1:
@@ -161,40 +165,40 @@ class Metar:
             return '3/4'
         return self.vis
 
-
     def __repr__(self):
-        return f'{self.station} '\
-               f'{self.cat} '\
-               f'{str(self.wind)} '\
-               f'{self.alt} '\
-               f'{self.temp_and_dewpt()} '\
-               f'{self.vis} '\
+        return f'{self.station} ' \
+               f'{self.cat} ' \
+               f'{str(self.wind)} ' \
+               f'{self.alt} ' \
+               f'{self.temp_and_dewpt()} ' \
+               f'{self.vis} ' \
                f'{str(self.sky)}'
 
     def text_out(self):
-        ''' slgihtly more formatted version of __repr__'''
-        print(f'{self.station} '\
-              f'{self.timestamp} '\
-              f'({self.obs_age:03}m)  '\
-              f'{self.cat:4}  '\
-              f'{str(self.wind):9}  '\
-              f'{self.alt:.2f}  '\
-              f'{self.temp_and_dewpt():7}  '\
-              f'{self.format_vis()}  '\
+        """ slgihtly more formatted version of __repr__"""
+        print(f'{self.station} '
+              f'{self.timestamp} '
+              f'({self.obs_age:03}m)  '
+              f'{self.cat:4}  '
+              f'{str(self.wind):9}  '
+              f'{self.alt:.2f}  '
+              f'{self.temp_and_dewpt():7}  '
+              f'{self.format_vis()}  '
               f'{str(self.sky.ceiling_or_lowest())}')
 
 
 class Metars:
-    '''grabs one or more metars from aviationweather.gov'''
+    """grabs one or more metars from aviationweather.gov"""
+
     def __init__(self, airports):
-        '''airports is a list of airport IDs'''
+        """airports is a list of airport IDs"""
         self.airports = []
-        if not isinstance(airports, list): # airports is probably a string
-            if isinstance(airports, str):   # let's make sure
-                self.airports.append(airports)     # this is the case when we get a single string
-        else:    # we've got a list, make sure all elements are strings
+        if not isinstance(airports, list):  # airports is probably a string
+            if isinstance(airports, str):  # let's make sure
+                self.airports.append(airports)  # this is the case when we get a single string
+        else:  # we've got a list, make sure all elements are strings
             for airport in airports:
-                if isinstance(airport, str): # filter out anything that's not a string
+                if isinstance(airport, str):  # filter out anything that's not a string
                     self.airports.append(airport)
 
         # what if we get a list with no strings?
@@ -206,26 +210,27 @@ class Metars:
         self.update()
 
     def update(self):
-        ''' Gets the latest METARs for the list of airports.
+        """ Gets the latest METARs for the list of airports.
         Return True if we got a good response, False if we didn't.
         As a side effect this will trim the list of airports to those that were
-        updated successfully. Invalid airport are ignored by the API.'''
+        updated successfully. Invalid airport are ignored by the API."""
 
         res = requests.get(BASE_URL + ' '.join(self.airports))
         if res.ok:
-            metars_dict = xmltodict.parse(res.text) #parse XML to dict
+            metars_dict = xmltodict.parse(res.text)  # parse XML to dict
             n_results = int(metars_dict['response']['data']['@num_results'])
-            if n_results == 0: return False # got nothing back from ADDS
+            if n_results == 0:
+                return False  # got nothing back from ADDS
 
             # actual results are buried a few layers in
             results = metars_dict['response']['data']['METAR']
 
-            # keep track of which airports were succefful
-            successful_updates=[]
-            if n_results == 1: # one result will be a singleton
+            # keep track of which airports were successful
+            successful_updates = []
+            if n_results == 1:  # one result will be a singleton
                 successful_updates.append(results['station_id'])
                 self.metars_dict[results['station_id']] = Metar(results)
-            elif n_results > 1: # multiple results will be in a list
+            elif n_results > 1:  # multiple results will be in a list
                 for result in results:
                     successful_updates.append(result['station_id'])
                     self.metars_dict[result['station_id']] = Metar(result)
@@ -237,7 +242,7 @@ class Metars:
             return False
 
     def text_out(self):
-        ''' provides a lightly formatted output of the metars '''
+        """ provides a lightly formatted output of the metars """
         for metar in self.metars_dict.values():
             metar.text_out()
 
@@ -245,11 +250,12 @@ class Metars:
         out = ""
         for metar in self.metars_dict.items():
             out += f'{metar[0]}: {metar[1]}\n'
-        return out[:-1] # trim off the trailing \n
+        return out[:-1]  # trim off the trailing \n
+
 
 if __name__ == '__main__':
-    airports = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KHND', 'KSXT']
+    airport_list = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KHND', 'KSXT']
 
-    metars = Metars(airports)
+    metars = Metars(airport_list)
     print(HEADER)
     metars.text_out()
