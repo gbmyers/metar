@@ -18,13 +18,12 @@ COLOR = {'LIFR': '\x1b[1;95m',  # pinkish/purple
          'MVFR': '\x1b[1;34m',  # blue
          'VFR':  '\x1b[1;32m'}  # green
 
-HEADER = "ARPT TIME    AGE     CAT   WIND       ALT    TEMP     VIS  CEIL/LWST"
+HEADER = "ARPT TIME   AGE     CAT   WIND       ALT    TEMP     VIS  CEIL/LWST   WEATHER"
 
 
 class Wind:
     """ stores wind speed and direction """
 
-    # I wonder if this will work for variable winds
     def __init__(self, direction, speed, gust=None):
         self.dir = int(direction)
         self.speed = int(speed)
@@ -149,6 +148,8 @@ class Metar:
             else:
                 self.wind = Wind(metar['wind_dir_degrees'],
                                  metar['wind_speed_kt'])
+        else:
+            self.wind = None
         self.vis = float(metar['visibility_statute_mi']) if 'visibility_statute_mi' in metar.keys() else None
         self.alt = int(float(metar['altim_in_hg']) * 100) / 100 if 'altim_in_hg' in metar.keys() else None
         self.cat = metar['flight_category']
@@ -158,10 +159,10 @@ class Metar:
     def temp_and_dewpt(self):
         temp = "xx"
         dewpt = "xx"
-        if self.temp:
+        if self.temp is not None:
             temp_sign = "M" if self.temp < 0 else ""
             temp = f'{temp_sign}{abs(self.temp):02}'
-        if self.dewpt:
+        if self.dewpt is not None:
             dewp_sign = "M" if self.dewpt < 0 else ""
             dewpt = f'{dewp_sign}{abs(self.dewpt):02}'
         return temp + '/' + dewpt
@@ -199,9 +200,9 @@ class Metar:
         LIFR > 500"""
         ceiling = self.sky.ceiling()
         if ceiling:
-            if ceiling.alt >= 3000:
+            if ceiling.alt > 3000:
                 return f'{COLOR["VFR"]} {str(ceiling):9}\x1b[0m'
-            elif ceiling.alt >= 1000:
+            elif ceiling.alt > 1000:
                 return f'{COLOR["MVFR"]} {str(ceiling):9}\x1b[0m'
             elif ceiling.alt >= 500:
                 return f'{COLOR["IFR"]} {str(ceiling):9}\x1b[0m'
@@ -221,16 +222,16 @@ class Metar:
 
     def text_out(self):
         """ slightly more formatted version of __repr__"""
-        print(f'{self.station} '
-              f'{self.timestamp} '
-              f'({self.obs_age:03}m)  '
-              f'{self.format_cat()}  '
-              f'{str(self.wind):9}  '
-              f'{self.alt:.2f}  '
-              f'{self.temp_and_dewpt():7}  '
-              f'{self.format_vis()}  '
-              f'{self.format_ceiling()}  '
-              f'{self.wx_string}')
+        return f'{self.station} ' \
+               f'{self.timestamp} ' \
+               f'({self.obs_age:02}m)  ' \
+               f'{self.format_cat()}  ' \
+               f'{str(self.wind):9}  ' \
+               f'{self.alt:.2f}  ' \
+               f'{self.temp_and_dewpt():7}  ' \
+               f'{self.format_vis()}  ' \
+               f'{self.format_ceiling()}  ' \
+               f'{self.wx_string}'
 
 
 class Metars:
@@ -289,8 +290,10 @@ class Metars:
 
     def text_out(self):
         """ provides a lightly formatted output of the metars """
-        for metar in self.metars_dict.values():
-            metar.text_out()
+        out_strings = [metar.text_out() for metar in self.metars_dict.values()]
+        out_strings.sort(key=lambda x: x[0:4])
+        for airport_wx in out_strings:
+            print(airport_wx)
 
     def __repr__(self):
         out = ""
