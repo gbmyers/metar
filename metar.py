@@ -1,6 +1,7 @@
 import requests
 import xmltodict
 from datetime import datetime
+from math import exp
 
 # constants
 BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?" \
@@ -13,12 +14,19 @@ BASE_URL = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?" 
 
 OBS_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
 
-COLOR = {'LIFR': '\x1b[1;95m',  # pinkish/purple
-         'IFR':  '\x1b[1;91m',  # red
-         'MVFR': '\x1b[1;34m',  # blue
-         'VFR':  '\x1b[1;32m'}  # green
+CAT_COLOR = {'LIFR': '\x1b[1;95m',  # pinkish/purple
+             'IFR':  '\x1b[1;91m',  # red
+             'MVFR': '\x1b[1;34m',  # blue
+             'VFR':  '\x1b[1;32m'}  # green
 
-HEADER = "ARPT TIME   AGE     CAT   WIND       ALT    TEMP     VIS  CEIL/LWST   WEATHER"
+# controls the timing and coloration of METAR timestamps based on age
+TIMESTAMP_AGE = {'STALE': 20,
+                 'OLD': 60}
+
+AGE_COLOR = {'STALE': '\x1b[1;37m',  # lighter text
+             'OLD': '\x1b[1;30m'}    # black text
+
+HEADER = "ARPT TIME    CAT   WIND       ALT    TEMP     RH     VIS  CEIL/LWST   WEATHER"
 
 
 class Wind:
@@ -134,12 +142,13 @@ class Metar:
         self.station = metar['station_id']
         obs_time = metar['observation_time'][:-1]  # strip trailing Z
         self.obs_time = datetime.strptime(obs_time, OBS_TIME_FORMAT)
-        obs_age = datetime.utcnow() - self.obs_time
-        self.obs_age = obs_age.seconds // 60  # observation age in minutes
+        self.update_age()
         self.timestamp = metar['raw_text'][5:12]
         self.raw = metar['raw_text']
         self.temp = round(float(metar['temp_c'])) if 'temp_c' in metar.keys() else None
         self.dewpt = round(float(metar['dewpoint_c'])) if 'dewpoint_c' in metar.keys() else None
+        if self.temp is not None and self.dewpt is not None:
+            self.rh = int(100*(exp((17.625*self.dewpt)/(243.04+self.dewpt))/exp((17.625*self.temp)/(243.04+self.temp))))
         if 'wind_speed_kt' in metar.keys():
             if 'wind_gust_kt' in metar.keys():
                 self.wind = Wind(metar['wind_dir_degrees'],
@@ -156,6 +165,10 @@ class Metar:
         self.sky = Sky(metar['sky_condition']) if 'sky_condition' in metar.keys() else None
         self.wx_string = metar['wx_string'] if 'wx_string' in metar.keys() else ""
 
+    def update_age(self):
+        obs_age = datetime.utcnow() - self.obs_time
+        self.obs_age = obs_age.seconds // 60  # observation age in minutes
+
     def temp_and_dewpt(self):
         temp = "xx"
         dewpt = "xx"
@@ -168,7 +181,7 @@ class Metar:
         return temp + '/' + dewpt
 
     def format_cat(self):
-        return f'{COLOR[self.cat]}{self.cat:4}\x1b[0m'
+        return f'{CAT_COLOR[self.cat]}{self.cat:4}\x1b[0m'
 
     def format_vis(self):
         """colorizes the visibility based on its flight category
@@ -178,17 +191,17 @@ class Metar:
         IFR  1-3 sm
         LIFR < 1 sm """
         if self.vis >= 5:  #
-            return f'{COLOR["VFR"]} {int(self.vis):02}\x1b[0m'
+            return f'{CAT_COLOR["VFR"]} {int(self.vis):02}\x1b[0m'
         elif self.vis >= 3:
-            return f'{COLOR["MVFR"]} {int(self.vis):02}\x1b[0m'
+            return f'{CAT_COLOR["MVFR"]} {int(self.vis):02}\x1b[0m'
         elif self.vis >= 1:
-            return f'{COLOR["IFR"]} {int(self.vis):02}\x1b[0m'
+            return f'{CAT_COLOR["IFR"]} {int(self.vis):02}\x1b[0m'
         elif self.vis == .25:
-            return f'{COLOR["LIFR"]}1/4\x1b[0m'
+            return f'{CAT_COLOR["LIFR"]}1/4\x1b[0m'
         elif self.vis == .5:
-            return f'{COLOR["LIFR"]}1/2\x1b[0m'
+            return f'{CAT_COLOR["LIFR"]}1/2\x1b[0m'
         elif self.vis == .75:
-            return f'{COLOR["LIFR"]}3/4\x1b[0m'
+            return f'{CAT_COLOR["LIFR"]}3/4\x1b[0m'
         return self.vis
 
     def format_ceiling(self):
@@ -201,15 +214,24 @@ class Metar:
         ceiling = self.sky.ceiling()
         if ceiling:
             if ceiling.alt > 3000:
-                return f'{COLOR["VFR"]} {str(ceiling):9}\x1b[0m'
+                return f'{CAT_COLOR["VFR"]} {str(ceiling):9}\x1b[0m'
             elif ceiling.alt > 1000:
-                return f'{COLOR["MVFR"]} {str(ceiling):9}\x1b[0m'
+                return f'{CAT_COLOR["MVFR"]} {str(ceiling):9}\x1b[0m'
             elif ceiling.alt >= 500:
-                return f'{COLOR["IFR"]} {str(ceiling):9}\x1b[0m'
+                return f'{CAT_COLOR["IFR"]} {str(ceiling):9}\x1b[0m'
             else:
-                return f'{COLOR["LIFR"]} {str(ceiling):9}\x1b[0m'
+                return f'{CAT_COLOR["LIFR"]} {str(ceiling):9}\x1b[0m'
         # if not a ceiling, then we're VFR
-        return f'{COLOR["VFR"]} {str(self.sky.ceiling_or_lowest()):9}\x1b[0m'
+        return f'{CAT_COLOR["VFR"]} {str(self.sky.ceiling_or_lowest()):9}\x1b[0m'
+
+    def format_timestamp(self):
+        """ color the timestamp based on age """
+        self.update_age()
+        if self.obs_age > TIMESTAMP_AGE['OLD']:
+            return f'{AGE_COLOR["OLD"]}{str(self.timestamp[:-1])}\x1b[0m'
+        if self.obs_age > TIMESTAMP_AGE['STALE']:
+            return f'{AGE_COLOR["STALE"]}{str(self.timestamp[:-1])}\x1b[0m'
+        return str(self.timestamp[:-1])
 
     def __repr__(self):
         return f'{self.station} ' \
@@ -222,13 +244,14 @@ class Metar:
 
     def text_out(self):
         """ slightly more formatted version of __repr__"""
+        self.update_age()
         return f'{self.station} ' \
-               f'{self.timestamp} ' \
-               f'({self.obs_age:02}m)  ' \
+               f'{self.format_timestamp()}  ' \
                f'{self.format_cat()}  ' \
                f'{str(self.wind):9}  ' \
                f'{self.alt:.2f}  ' \
                f'{self.temp_and_dewpt():7}  ' \
+               f'{self.rh:3}%  '\
                f'{self.format_vis()}  ' \
                f'{self.format_ceiling()}  ' \
                f'{self.wx_string}'
@@ -291,7 +314,7 @@ class Metars:
     def text_out(self):
         """ provides a lightly formatted output of the metars """
         out_strings = [metar.text_out() for metar in self.metars_dict.values()]
-        out_strings.sort(key=lambda x: x[0:4])
+        out_strings.sort(key=lambda x: x[0:4])  # sort by airport code
         for airport_wx in out_strings:
             print(airport_wx)
 
