@@ -207,15 +207,15 @@ class Metar:
     def format_ceiling(self):
         """ colorizes the ceiling based on its flight category
         (not necessarily the flight category of the airport)
-        VFR > 3000
-        MVFR 1000 - 3000
-        IFR 500 - 1000
+        VFR >= 3000
+        MVFR >= 1000 < 3000
+        IFR >= 500 < 1000
         LIFR > 500"""
         ceiling = self.sky.ceiling()
         if ceiling:
             if ceiling.alt > 3000:
                 return f'{CAT_COLOR["VFR"]} {str(ceiling):9}\x1b[0m'
-            elif ceiling.alt > 1000:
+            elif ceiling.alt >= 1000:
                 return f'{CAT_COLOR["MVFR"]} {str(ceiling):9}\x1b[0m'
             elif ceiling.alt >= 500:
                 return f'{CAT_COLOR["IFR"]} {str(ceiling):9}\x1b[0m'
@@ -326,7 +326,7 @@ class Metars:
 
 
 if __name__ == '__main__':
-    airport_list = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KHND', 'KSXT']
+    airport_list = ['KTTA', 'KSEA', 'KRDU', 'KHQM', 'KGSO', 'KPIT', 'KHND', 'KSXT', 'KBCB', 'KLYH', 'KROA']
 
     metars = Metars(airport_list)
     print(HEADER)
